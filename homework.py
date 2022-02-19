@@ -71,13 +71,15 @@ def check_response(response: dict) -> list:
     if len(response) == 0:
         logger.critical('Dictionary is empty.')
         raise Exception('Dictionary is empty.')
-    if 'homeworks' not in response:
+    if not response['homeworks']:
         logger.error('отсутствие ожидаемых ключей в ответе API ')
-        raise TypeError('Homework is not in a dictionary')
+        raise Exception('Homework is not in a dictionary')
     try:
         list_of_homeworks: list = response.get('homeworks')
+        if list_of_homeworks is None:
+            raise Exception('List is None.')
         if isinstance(list_of_homeworks, dict):
-            raise TypeError('It is not a list.')
+            raise Exception('It is not a list.')
         return list_of_homeworks
     except Exception as error:
         logger.critical(f'Вид ошибки: {error}')
@@ -116,6 +118,7 @@ def main():
             'Отсутствие обязательных переменных окружения'
             'во время запуска бота'
         )
+        raise Exception('Tokens is unavailiable.')
 
     current_timestamp: int = int(time.time())
 
@@ -139,8 +142,6 @@ def main():
             send_message(BOT, message)
             logger.error('Cбой при отправке сообщения в Telegram')
             time.sleep(RETRY_TIME)
-        else:
-            pass
 
 
 if __name__ == '__main__':

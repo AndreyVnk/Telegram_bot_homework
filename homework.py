@@ -62,22 +62,22 @@ def get_api_answer(current_timestamp: int) -> dict:
                 f'Недоступность эндпоинта {ENDPOINT}'
                 f'Код ответа API {homework_statuses.status_code}'
             )
-            raise TypeError("asd")
+            raise Exception('Not allowed. Code != 200.')
     return homework_statuses.json()
 
 
 def check_response(response: dict) -> list:
     """Check response."""
     if len(response) == 0:
-        logger.critical('Ошибка')
-        raise IndexError("asd")
-    elif 'homeworks' not in response:
+        logger.critical('Dictionary is empty.')
+        raise Exception('Dictionary is empty.')
+    if 'homeworks' not in response:
         logger.error('отсутствие ожидаемых ключей в ответе API ')
-        raise TypeError('homework not in a dictionary')
+        raise TypeError('Homework is not in a dictionary')
     try:
         list_of_homeworks: list = response.get('homeworks')
         if isinstance(list_of_homeworks, dict):
-            raise TypeError('not list')
+            raise TypeError('It is not a list.')
         return list_of_homeworks
     except Exception as error:
         logger.critical(f'Вид ошибки: {error}')

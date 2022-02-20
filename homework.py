@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from typing import Optional, Dict
 
 import requests
 import telegram
@@ -20,9 +21,9 @@ formatter = logging.Formatter(
 
 handler.setFormatter(formatter)
 
-PRACTICUM_TOKEN = os.getenv('PRACTICUM_TOKEN')
-TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
-TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID')
+PRACTICUM_TOKEN: Optional[str] = os.getenv('PRACTICUM_TOKEN')
+TELEGRAM_TOKEN: Optional[str] = os.getenv('TELEGRAM_TOKEN')
+TELEGRAM_CHAT_ID: Optional[str] = os.getenv('TELEGRAM_CHAT_ID')
 
 RETRY_TIME = 600
 ENDPOINT = 'https://practicum.yandex.ru/api/user_api/homework_statuses/'
@@ -35,10 +36,8 @@ HOMEWORK_STATUSES = {
     'rejected': 'Работа проверена: у ревьюера есть замечания.'
 }
 
-BOT = telegram.Bot(token=TELEGRAM_TOKEN)
 
-
-def send_message(bot: telegram.bot, message: str):
+def send_message(bot: telegram.bot.Bot, message: str):
     """Send message."""
     bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
 
@@ -49,7 +48,7 @@ def get_api_answer(current_timestamp: int) -> dict:
     params: dict = {'from_date': timestamp}
 
     try:
-        homework_statuses: requests = requests.get(
+        homework_statuses: requests.models.Response = requests.get(
             ENDPOINT,
             headers=HEADERS,
             params=params
@@ -68,38 +67,34 @@ def get_api_answer(current_timestamp: int) -> dict:
 
 def check_response(response: dict) -> list:
     """Check response."""
-    if len(response) == 0:
-        logger.critical('Dictionary is empty.')
-        raise Exception('Dictionary is empty.')
-    if not response['homeworks']:
-        logger.error('отсутствие ожидаемых ключей в ответе API ')
-        raise Exception('Homework is not in a dictionary')
     try:
-        list_of_homeworks: list = response.get('homeworks')
-        if list_of_homeworks is None:
-            raise Exception('List is None.')
+        list_of_homeworks: list = response['homeworks']
+    except TypeError:
+        logger.critical('Dictionary is empty.')
+        raise TypeError('Dictionary is empty.')
+    except KeyError:
+        logger.critical('Ответ от API не содержит ключа `homeworks`.')
+        raise KeyError('Ответ от API не содержит ключа `homeworks`.')
+    else:
         if isinstance(list_of_homeworks, dict):
-            raise Exception('It is not a list.')
-        return list_of_homeworks
-    except Exception as error:
-        logger.critical(f'Вид ошибки: {error}')
-        send_message(BOT, f'Ошибка {error}')
+            raise Exception('List is not a list.')
+    return list_of_homeworks
 
 
 def parse_status(homework: dict) -> str:
     """Parse status."""
-    homework_name: str = homework.get('homework_name')
-    homework_status: str = homework.get('status')
+    homework_name: Optional[str] = homework.get('homework_name')
+    homework_status: Optional[str] = homework.get('status')
 
     try:
-        verdict: str = HOMEWORK_STATUSES[homework_status]
+        verdict: str = HOMEWORK_STATUSES[f'{homework_status}']
     except UnboundLocalError as error:
         logger.error(
             'Недокументированный статус домашней работы,'
             'обнаруженный в ответе API'
             f'Ошибка: {error}'
         )
-        send_message(BOT, f'Ошибка {error}')
+        return f'Ошибка {error}'
     return f'Изменился статус проверки работы "{homework_name}". {verdict}'
 
 
@@ -120,8 +115,9 @@ def main():
         )
         raise Exception('Tokens is unavailiable.')
 
+    bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp: int = int(time.time())
-
+    print(current_timestamp)
     while True:
         try:
             response: dict = get_api_answer(current_timestamp)
@@ -129,17 +125,17 @@ def main():
 
             try:
                 message: str = parse_status(homeworks_list[0])
-                send_message(BOT, message)
-                logger.info('Удачная отправка любого сообщения в Telegram')
+                send_message(bot, message)
+                logger.info('Удачная отправка сообщения в Telegram')
             except IndexError:
                 logger.debug('Отсутствие в ответе новых статусов')
-                send_message(BOT, 'Список пуст')
+                send_message(bot, 'Список пуст')
             current_timestamp: int = response.get('current_date')
             time.sleep(RETRY_TIME)
 
         except Exception as error:
             message: str = f'Сбой в работе программы: {error}'
-            send_message(BOT, message)
+            send_message(bot, message)
             logger.error('Cбой при отправке сообщения в Telegram')
             time.sleep(RETRY_TIME)
 

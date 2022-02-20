@@ -1,7 +1,7 @@
 import logging
 import os
 import time
-from typing import Optional, Dict
+from typing import Optional
 
 import requests
 import telegram

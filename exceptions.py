@@ -40,3 +40,14 @@ class ListHWIsNotList(Exception):
 
     def __str__(self):
         return f'{self.message}'
+
+
+class TokensUnavailable(Exception):
+    """Raised when the tokens are unavailable."""
+
+    def __init__(self, message):
+        self.message = message
+        super().__init__()
+
+    def __str__(self):
+        return f'{self.message}'

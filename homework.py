@@ -128,7 +128,7 @@ def main():
             'Отсутствие обязательных переменных окружения'
             'во время запуска бота'
         )
-        raise Exception('Tokens is unavailiable.')
+        raise UserExceptions.TokensUnavailable('Tokens are unavailiable.')
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp: int = int(time.time())

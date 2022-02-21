@@ -76,7 +76,6 @@ def get_api_answer(current_timestamp: int) -> dict:
         return homework_statuses.json()
     except json.decoder.JSONDecodeError as error:
         raise UserExceptions.JSONDecodeError(f'Occurs {error}')
-            
 
 
 def check_response(response: dict) -> list:

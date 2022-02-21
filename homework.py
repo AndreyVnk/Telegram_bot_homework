@@ -1,12 +1,15 @@
+import json
 import logging
 import os
 import time
-from typing import Optional
 
+import exceptions as UserExceptions
 import requests
 import telegram
 
 from dotenv import load_dotenv
+from http import HTTPStatus
+from typing import Optional
 
 load_dotenv()
 
@@ -39,7 +42,12 @@ HOMEWORK_STATUSES = {
 
 def send_message(bot: telegram.bot.Bot, message: str):
     """Send message."""
-    bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+    try:
+        bot.send_message(chat_id=TELEGRAM_CHAT_ID, text=message)
+    except telegram.TelegramError as error:
+        raise UserExceptions.MessageNotSend(
+            f'Message does not send. Error: {error}'
+        )
 
 
 def get_api_answer(current_timestamp: int) -> dict:
@@ -53,16 +61,22 @@ def get_api_answer(current_timestamp: int) -> dict:
             headers=HEADERS,
             params=params
         )
-    except Exception as error:
+    except requests.exceptions.RequestException as error:
         logger.error(f'Ошибка при отправке запроса: {error}')
     else:
-        if homework_statuses.status_code != 200:
+        if homework_statuses.status_code != HTTPStatus.OK:
             logger.error(
                 f'Недоступность эндпоинта {ENDPOINT}'
                 f'Код ответа API {homework_statuses.status_code}'
             )
-            raise Exception('Not allowed. Code != 200.')
-    return homework_statuses.json()
+            raise UserExceptions.StatusCodeNotOK(
+                'Not allowed. Code is not OK.'
+            )
+    try:
+        return homework_statuses.json()
+    except json.decoder.JSONDecodeError as error:
+        raise UserExceptions.JSONDecodeError(f'Occurs {error}')
+            
 
 
 def check_response(response: dict) -> list:
@@ -76,16 +90,18 @@ def check_response(response: dict) -> list:
         logger.critical('Ответ от API не содержит ключа `homeworks`.')
         raise KeyError('Ответ от API не содержит ключа `homeworks`.')
     else:
-        if isinstance(list_of_homeworks, dict):
-            raise Exception('List is not a list.')
+        if not isinstance(list_of_homeworks, list):
+            raise UserExceptions.ListHWIsNotList('HW list is not a list.')
     return list_of_homeworks
 
 
 def parse_status(homework: dict) -> str:
     """Parse status."""
-    homework_name: Optional[str] = homework.get('homework_name')
-    homework_status: Optional[str] = homework.get('status')
-
+    try:
+        homework_name: Optional[str] = homework['homework_name']
+        homework_status: Optional[str] = homework['status']
+    except KeyError as error:
+        raise KeyError(f'Homework does not contain data: {error}')
     try:
         verdict: str = HOMEWORK_STATUSES[f'{homework_status}']
     except UnboundLocalError as error:
@@ -108,7 +124,7 @@ def check_tokens():
 
 def main():
     """How does the bot work. Main logic."""
-    if check_tokens() is False:
+    if not check_tokens():
         logger.critical(
             'Отсутствие обязательных переменных окружения'
             'во время запуска бота'
@@ -117,7 +133,7 @@ def main():
 
     bot = telegram.Bot(token=TELEGRAM_TOKEN)
     current_timestamp: int = int(time.time())
-    print(current_timestamp)
+
     while True:
         try:
             response: dict = get_api_answer(current_timestamp)
@@ -129,7 +145,7 @@ def main():
                 logger.info('Удачная отправка сообщения в Telegram')
             except IndexError:
                 logger.debug('Отсутствие в ответе новых статусов')
-                send_message(bot, 'Список пуст')
+
             current_timestamp: int = response.get('current_date')
             time.sleep(RETRY_TIME)
 
